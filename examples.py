@@ -1,43 +1,41 @@
 import uvicorn
-from fastapi_hbr import HeaderBasedRoutingFastApi, HeaderVersionedAPIRouter, CustomHeaderVersionMiddleware
+from typing import Dict
+from fastapi_header_versioning import HeaderBasedRoutingFastApi, HeaderVersionedAPIRouter
 
-
-GREETINGS_V1 = "Hello"
-GREETINGS_V2 = "It's me"
-GREETINGS_V3 = "I was wondering if after all these years you'd like to meet"
-GREETINGS_LATEST = "Hello, can you hear me?"
 
 router = HeaderVersionedAPIRouter()
 
 
 @router.get("/hello")
 @router.version("1")
-async def hello_v1() -> dict:
-    return {"greetings": GREETINGS_V1}
+async def hello_v1() -> Dict:
+    return {"greetings": "V1 hello!"}
 
 
 @router.get("/hello")
 @router.version("2")
-async def hello_v2() -> dict:
-    return {"greetings": GREETINGS_V2}
+async def hello_v2() -> Dict:
+    return {"greetings": "V2 hello!"}
 
 
 @router.get("/hello")
 @router.version("3")
-async def hello_v3() -> dict:
-    return {"greetings": GREETINGS_V3}
+async def hello_v3() -> Dict:
+    return {"greetings": "V3 hello!"}
 
 
 @router.get("/hello")
-@router.version("latest")
-async def hello_latest() -> dict:
-    return {"greetings": GREETINGS_LATEST}
+@router.version("some_other_string")
+async def hello_latest() -> Dict:
+    return {"greetings": "Some other greeting"}
 
 
-app = HeaderBasedRoutingFastApi(title="Versioned app")
-app.add_middleware(
-    CustomHeaderVersionMiddleware, version_header="x-version",
-)
+@router.get("/hello_not_versioned")
+async def hello_latest() -> Dict:
+    return {"greetings": "Not versioned greeting."}
+
+
+app = HeaderBasedRoutingFastApi(version_header="x-version", title="Versioned app")
 app.include_router(router)
 
 

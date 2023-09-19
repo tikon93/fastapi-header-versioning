@@ -1,4 +1,4 @@
-from typing import Any, Callable, Tuple, Type
+from typing import Any, Callable, Tuple, Type, Set, TypeVar
 
 from fastapi import APIRouter
 from fastapi.routing import APIRoute
@@ -11,7 +11,17 @@ from starlette.routing import Match
 from starlette.types import Receive, Scope, Send
 
 
-async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send):
+_T = TypeVar("_T")
+
+
+def same_definition_as_in(t: _T) -> Callable[[Callable], _T]:
+    def decorator(f: Callable) -> _T:
+        return f  # pyright: ignore
+
+    return decorator
+
+
+async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send) -> None:
     if "app" in scope:
         raise HTTPException(
             406,
@@ -25,8 +35,13 @@ async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send
 class HeaderVersionedAPIRoute(APIRoute):
 
     @property
-    def endpoint_version(self) -> str:
-        return str(self.endpoint.__api_version__)
+    def endpoint_version(self) -> str | None:
+        # get version declared by decorator or fallback to None in case if decorator was not used
+        version = getattr(self.endpoint, "__api_version__", None)
+        if version is None:
+            return None
+
+        return str(version)
 
     def is_version_matching(self, scope: Scope) -> bool:
         requested_version = scope["requested_version"]
@@ -51,26 +66,33 @@ class HeaderVersionedAPIRoute(APIRoute):
 
 
 class HeaderVersionedAPIRouter(APIRouter):
-    def __init__(self, *args, route_class: Type[HeaderVersionedAPIRoute] = HeaderVersionedAPIRoute, **kwargs) -> None:
-        self.registered_versions: set[str] = set()
+    def __init__(
+        self,
+        *args: Any,
+        route_class: Type[HeaderVersionedAPIRoute] = HeaderVersionedAPIRoute,
+        **kwargs: Any
+    ) -> None:
+        self.registered_versions: Set[str] = set()
         super().__init__(*args, route_class=route_class, **kwargs)
 
     def version(
-            self, api_version: str
+        self, api_version: str
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         self.registered_versions.add(api_version)
 
         def decorator(func: DecoratedCallable) -> DecoratedCallable:
-            func.__api_version__ = api_version  # type:ignore
+            func.__api_version__ = api_version
             return func
 
+        decorator.__is_versioned__ = True
         return decorator
 
+    @same_definition_as_in(APIRouter.include_router)
     def include_router(
-            self,
-            router: "APIRouter",
-            *args: Any,
-            **kwargs: Any
+        self,
+        router: "APIRouter",
+        *args: Any,
+        **kwargs: Any
     ) -> None:
 
         super().include_router(router, *args, **kwargs)
@@ -79,7 +101,7 @@ class HeaderVersionedAPIRouter(APIRouter):
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """
-        The main entry point to the Router class.
+        Mostly a duplicate of FastAPI implementation, but with ability to handle partially matched versions.
         """
         assert scope["type"] in ("http", "websocket", "lifespan")
 
