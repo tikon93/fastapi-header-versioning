@@ -1,22 +1,21 @@
-from typing import Any, Callable, Tuple, Type, Set, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from fastapi import APIRouter
 from fastapi.routing import APIRoute
 from fastapi.types import DecoratedCallable
 from starlette.datastructures import URL
 from starlette.exceptions import HTTPException
-from starlette.responses import PlainTextResponse
-from starlette.responses import RedirectResponse
+from starlette.responses import PlainTextResponse, RedirectResponse
 from starlette.routing import Match
 from starlette.types import Receive, Scope, Send
-
 
 _T = TypeVar("_T")
 
 
 def same_definition_as_in(t: _T) -> Callable[[Callable], _T]:
     def decorator(f: Callable) -> _T:
-        return f  # pyright: ignore
+        return f  # pyright: ignore[reportGeneralTypeIssues]
 
     return decorator
 
@@ -25,7 +24,7 @@ async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send
     if "app" in scope:
         raise HTTPException(
             406,
-            f"Requested version {scope['requested_version']} does not exist. "
+            f"Requested version {scope['requested_version']} does not exist. ",
         )
 
     response = PlainTextResponse("Not Acceptable", status_code=406)
@@ -33,7 +32,6 @@ async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send
 
 
 class HeaderVersionedAPIRoute(APIRoute):
-
     @property
     def endpoint_version(self) -> str | None:
         # get version declared by decorator or fallback to None in case if decorator was not used
@@ -47,7 +45,7 @@ class HeaderVersionedAPIRoute(APIRoute):
         requested_version = scope["requested_version"]
         return self.endpoint_version == requested_version
 
-    def matches(self, scope: Scope) -> Tuple[Match, Scope]:
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
         match, child_scope = super().matches(scope)
 
         if match == Match.NONE or match == Match.PARTIAL:
@@ -69,14 +67,15 @@ class HeaderVersionedAPIRouter(APIRouter):
     def __init__(
         self,
         *args: Any,
-        route_class: Type[HeaderVersionedAPIRoute] = HeaderVersionedAPIRoute,
-        **kwargs: Any
+        route_class: type[HeaderVersionedAPIRoute] = HeaderVersionedAPIRoute,
+        **kwargs: Any,
     ) -> None:
-        self.registered_versions: Set[str] = set()
+        self.registered_versions: set[str] = set()
         super().__init__(*args, route_class=route_class, **kwargs)
 
     def version(
-        self, api_version: str
+        self,
+        api_version: str,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         self.registered_versions.add(api_version)
 
@@ -92,9 +91,8 @@ class HeaderVersionedAPIRouter(APIRouter):
         self,
         router: "APIRouter",
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
-
         super().include_router(router, *args, **kwargs)
         if isinstance(router, HeaderVersionedAPIRouter):
             self.registered_versions.update(router.registered_versions)
@@ -103,7 +101,7 @@ class HeaderVersionedAPIRouter(APIRouter):
         """
         Mostly a duplicate of FastAPI implementation, but with ability to handle partially matched versions.
         """
-        assert scope["type"] in ("http", "websocket", "lifespan")
+        assert scope["type"] in ("http", "websocket", "lifespan")  # noqa: S101
 
         if "router" not in scope:
             scope["router"] = self
@@ -149,7 +147,7 @@ class HeaderVersionedAPIRouter(APIRouter):
             # Handle partial matches. These are cases where an endpoint is
             # able to handle the request, but is not a preferred option.
             # We use this in particular to deal with "405 Method Not Allowed".
-            scope.update(partial_scope)
+            scope.update(partial_scope)  # pyright: ignore[reportGeneralTypeIssues]
             await partial.handle(scope, receive, send)
             return
 
