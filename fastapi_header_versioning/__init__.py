@@ -1,8 +1,8 @@
-from .fastapi import HeaderRoutingFastApi
+from .fastapi import HeaderRoutingFastAPI
 from .routing import HeaderVersionedAPIRoute, HeaderVersionedAPIRouter
 
 __all__ = [
-    "HeaderRoutingFastApi",
+    "HeaderRoutingFastAPI",
     "HeaderVersionedAPIRoute",
     "HeaderVersionedAPIRouter",
 ]

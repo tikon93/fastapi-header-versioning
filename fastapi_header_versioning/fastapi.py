@@ -37,7 +37,7 @@ class CustomHeaderVersionMiddleware:
         return await self.app(scope, receive, send)
 
 
-class HeaderRoutingFastApi(FastAPI):
+class HeaderRoutingFastAPI(FastAPI):
     def __init__(
         self,
         version_header: str,
