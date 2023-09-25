@@ -17,7 +17,6 @@ class ItemPatch(BaseModel):
     description: str | None = None
 
 
-
 class GetResponse(BaseModel):
     commons: str
     new_query_parameter: str

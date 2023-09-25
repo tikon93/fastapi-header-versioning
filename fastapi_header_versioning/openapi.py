@@ -1,10 +1,10 @@
-from .fastapi import HeaderRoutingFastApi
-from typing import Dict, List
-from fastapi.routing import APIRoute
-from .routing import HeaderVersionedAPIRoute
 from collections import defaultdict
-from starlette.routing import BaseRoute
+
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
+
+from .fastapi import HeaderRoutingFastApi
+from .routing import HeaderVersionedAPIRoute
 
 
 def get_version_from_route(route: APIRoute) -> str | None:
@@ -18,12 +18,11 @@ def doc_generation(
     app: HeaderRoutingFastApi,
 ) -> HeaderRoutingFastApi:
     parent_app = app
-    version_route_mapping: Dict[str | None, List[APIRoute]] = defaultdict(list)
+    version_route_mapping: dict[str | None, list[APIRoute]] = defaultdict(list)
 
     for route in app.routes:
         version = get_version_from_route(route)
         version_route_mapping[version].append(route)
-
 
     versions = version_route_mapping.keys()
     for version in versions:
@@ -31,7 +30,7 @@ def doc_generation(
         version_description = version if version is not None else "Not versioned"
         versioned_app = FastAPI(
             title=app.title,
-            description=version_description + " " +app.description,
+            description=version_description + " " + app.description,
         )
         for route in version_route_mapping[version]:
             for method in route.methods:
