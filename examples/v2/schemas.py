@@ -9,7 +9,7 @@ class Item(BaseModel):
 
 
 class ItemResponse(Item):
-    item_id: uuid.UUID
+    id: uuid.UUID
 
 
 class ItemPatch(BaseModel):
@@ -18,7 +18,6 @@ class ItemPatch(BaseModel):
 
 
 class GetResponse(BaseModel):
-    commons: str
+    dependency_parameters: dict
     new_query_parameter: str
-    item_id: uuid.UUID
-    version: str
+    id: uuid.UUID

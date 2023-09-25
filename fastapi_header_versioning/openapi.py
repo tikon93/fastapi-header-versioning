@@ -2,12 +2,13 @@ from collections import defaultdict
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from starlette.routing import BaseRoute
 
-from .fastapi import HeaderRoutingFastApi
+from .fastapi import HeaderRoutingFastAPI
 from .routing import HeaderVersionedAPIRoute
 
 
-def get_version_from_route(route: APIRoute) -> str | None:
+def get_version_from_route(route: BaseRoute) -> str | None:
     if isinstance(route, HeaderVersionedAPIRoute):
         return route.endpoint_version or None
 
@@ -15,14 +16,14 @@ def get_version_from_route(route: APIRoute) -> str | None:
 
 
 def doc_generation(
-    app: HeaderRoutingFastApi,
-) -> HeaderRoutingFastApi:
+    app: HeaderRoutingFastAPI,
+) -> HeaderRoutingFastAPI:
     parent_app = app
-    version_route_mapping: dict[str | None, list[APIRoute]] = defaultdict(list)
+    version_route_mapping: dict[str | None, list[BaseRoute]] = defaultdict(list)
 
     for route in app.routes:
-        version = get_version_from_route(route)
-        version_route_mapping[version].append(route)
+        version = get_version_from_route(route)  # pyright: ignore[reportGeneralTypeIssues]
+        version_route_mapping[version].append(route)  # pyright: ignore[reportGeneralTypeIssues]
 
     versions = version_route_mapping.keys()
     for version in versions:
@@ -33,8 +34,11 @@ def doc_generation(
             description=version_description + " " + app.description,
         )
         for route in version_route_mapping[version]:
-            for method in route.methods:
-                unique_routes[route.path + "|" + method] = route
+            if isinstance(route, APIRoute):
+                for method in route.methods:
+                    unique_routes[route.path + "|" + method] = route
+
+            # TODO: support websocket routes
 
         versioned_app.router.routes.extend(unique_routes.values())
 
