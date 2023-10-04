@@ -1,8 +1,8 @@
 import uvicorn
 
-from examples.not_versioned.routes import router
-from examples.v1.routes import router as router_v1
-from examples.v2.routes import router as router_v2
+from examples.basic.not_versioned.routes import router
+from examples.basic.v1.routes import router as router_v1
+from examples.basic.v2.routes import router as router_v2
 from fastapi_header_versioning import HeaderRoutingFastAPI
 from fastapi_header_versioning.openapi import doc_generation
 
