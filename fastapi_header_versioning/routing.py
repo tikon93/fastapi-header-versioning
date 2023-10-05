@@ -119,18 +119,13 @@ class HeaderVersionedAPIRouter(APIRouter):
             # called from include_router or similar functions - we are re-generating routes
 
             # don't override route_class for already versioned routes
-            if not issubclass(route_class_override, HeaderVersionedAPIRoute):
+            if not issubclass(route_class_override, HeaderVersionedAPIRoute) and self._context_version:
                 # need to wrap original route class with HeaderVersionedAPIRoute
-                if self._context_version:
-                    # currently including routes from unversioned router with some externally defined version
-                    route_class_override = specific_version_api_route(
-                        self._context_version,
-                        route_class_override,
-                    )
-                else:
-                    # include unversioned router to a router with default version set. Kind of duplicated interface
-                    # for the same operation as in `include_unversioned_router_with_version`
-                    route_class_override = specific_version_api_route(self.default_version, route_class_override)
+                # currently including routes from unversioned router with some externally defined version
+                route_class_override = specific_version_api_route(
+                    self._context_version,
+                    route_class_override,
+                )
         else:
             # called from decorator-based routes declaration. extract __endpoint_api_version__ if set and generate
             # proper route
