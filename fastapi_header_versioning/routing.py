@@ -90,7 +90,7 @@ class HeaderVersionedAPIRouter(APIRouter):
     ) -> None:
         self.default_version: str | None = default_version
         self._context_version: str | None = None
-        self.registered_versions: set[str] = set()
+        self.registered_versions: set[str | None] = set()
         self.registered_versions.add(self.default_version)
         super().__init__(*args, **kwargs)
 
