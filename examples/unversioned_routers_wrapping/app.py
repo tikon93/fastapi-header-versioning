@@ -7,11 +7,13 @@ from fastapi_header_versioning import HeaderRoutingFastAPI, HeaderVersionedAPIRo
 from fastapi_header_versioning.openapi import doc_generation
 
 app = HeaderRoutingFastAPI(version_header="x-version", title="Versioned app")
+
 root_router = HeaderVersionedAPIRouter()
-router.include_unversioned_router_with_version(router_v1, version="1")
-router.include_unversioned_router_with_version(router_v2, version="2")
-router.include_router(root_router)
-app.include_router(router)
+root_router.include_router(router_v1, version="1")
+root_router.include_router(router_v2, version="2")
+root_router.include_router(router)
+
+app.include_router(root_router)
 app = doc_generation(app)
 
 uvicorn.Config(
