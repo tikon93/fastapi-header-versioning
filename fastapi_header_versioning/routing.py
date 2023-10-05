@@ -1,13 +1,27 @@
-from collections.abc import Callable
-from typing import Any, TypeVar
+from collections.abc import Callable, Sequence
+from enum import Enum
+from functools import cache
+from typing import (
+    Any,
+    Optional,
+    TypeVar,
+    Union,
+)
 
-from fastapi import APIRouter
+from fastapi import APIRouter, params
+from fastapi.datastructures import Default
 from fastapi.routing import APIRoute
 from fastapi.types import DecoratedCallable
+from fastapi.utils import (
+    generate_unique_id,
+)
 from starlette.datastructures import URL
 from starlette.exceptions import HTTPException
-from starlette.responses import PlainTextResponse, RedirectResponse
-from starlette.routing import Match
+from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.routing import (
+    BaseRoute,
+    Match,
+)
 from starlette.types import Receive, Scope, Send
 
 _T = TypeVar("_T")
@@ -20,30 +34,12 @@ def same_definition_as_in(t: _T) -> Callable[[Callable], _T]:
     return decorator
 
 
-async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send) -> None:
-    if "app" in scope:
-        raise HTTPException(
-            406,
-            f"Requested version {scope['requested_version']} does not exist. ",
-        )
-
-    response = PlainTextResponse("Not Acceptable", status_code=406)
-    await response(scope, receive, send)
-
-
 class HeaderVersionedAPIRoute(APIRoute):
-    @property
-    def endpoint_version(self) -> str | None:
-        # get version declared by decorator or fallback to None in case if decorator was not used
-        version = getattr(self.endpoint, "__api_version__", None)
-        if version is None:
-            return None
-
-        return str(version)
+    api_version = None
 
     def is_version_matching(self, scope: Scope) -> bool:
         requested_version = scope["requested_version"]
-        return self.endpoint_version == requested_version
+        return self.api_version == requested_version
 
     def matches(self, scope: Scope) -> tuple[Match, Scope]:
         match, child_scope = super().matches(scope)
@@ -63,15 +59,40 @@ class HeaderVersionedAPIRoute(APIRoute):
         await super().handle(scope, receive, send)
 
 
+@cache
+def specific_version_api_route(
+    version: str,
+    route_class: type[APIRoute] = APIRoute,
+) -> type[APIRoute]:
+    class SpecificVersionAPIRoute(HeaderVersionedAPIRoute, route_class):
+        api_version = version
+
+    return SpecificVersionAPIRoute
+
+
+async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send) -> None:
+    if "app" in scope:
+        raise HTTPException(
+            406,
+            f"Requested version {scope['requested_version']} does not exist. ",
+        )
+
+    response = PlainTextResponse("Not Acceptable", status_code=406)
+    await response(scope, receive, send)
+
+
 class HeaderVersionedAPIRouter(APIRouter):
     def __init__(
         self,
+        default_version: str | None = None,
         *args: Any,
-        route_class: type[HeaderVersionedAPIRoute] = HeaderVersionedAPIRoute,
         **kwargs: Any,
     ) -> None:
-        self.registered_versions: set[str] = set()
-        super().__init__(*args, route_class=route_class, **kwargs)
+        self.default_version: str | None = default_version
+        self._context_version: str | None = None
+        self.registered_versions: set[str | None] = set()
+        self.registered_versions.add(self.default_version)
+        super().__init__(*args, **kwargs)
 
     def version(
         self,
@@ -80,24 +101,83 @@ class HeaderVersionedAPIRouter(APIRouter):
         self.registered_versions.add(api_version)
 
         def decorator(func: DecoratedCallable) -> DecoratedCallable:
-            func.__api_version__ = api_version
+            func.__endpoint_api_version__ = api_version
             return func
 
-        decorator.__is_versioned__ = True
         return decorator
 
-    @same_definition_as_in(APIRouter.include_router)
+    @same_definition_as_in(APIRouter.add_api_route)
+    def add_api_route(
+        self,
+        path: str,
+        endpoint: Callable[..., Any],
+        *,
+        route_class_override: type[APIRoute] | None = None,
+        **kwargs: Any,
+    ):
+        if route_class_override:
+            # called from include_router or similar functions - we are re-generating routes
+
+            # don't override route_class for already versioned routes
+            if not issubclass(route_class_override, HeaderVersionedAPIRoute) and self._context_version:
+                # need to wrap original route class with HeaderVersionedAPIRoute
+                # currently including routes from unversioned router with some externally defined version
+                route_class_override = specific_version_api_route(
+                    self._context_version,
+                    route_class_override,
+                )
+        else:
+            # called from decorator-based routes declaration. extract __endpoint_api_version__ if set and generate
+            # proper route
+            if endpoint_version := getattr(endpoint, "__endpoint_api_version__", None):
+                route_class_override = specific_version_api_route(endpoint_version, APIRoute)
+            else:
+                # wrap with default version
+                route_class_override = specific_version_api_route(self.default_version, APIRoute)
+
+        super().add_api_route(path, endpoint, route_class_override=route_class_override, **kwargs)
+
     def include_router(
         self,
         router: "APIRouter",
-        *args: Any,
-        **kwargs: Any,
+        *,
+        prefix: str = "",
+        version: str | None = None,
+        tags: Optional[list[Union[str, Enum]]] = None,
+        dependencies: Optional[Sequence[params.Depends]] = None,
+        default_response_class: type[Response] = Default(JSONResponse),
+        responses: Optional[dict[Union[int, str], dict[str, Any]]] = None,
+        callbacks: Optional[list[BaseRoute]] = None,
+        deprecated: Optional[bool] = None,
+        include_in_schema: bool = True,
+        generate_unique_id_function: Callable[[APIRoute], str] = Default(
+            generate_unique_id,
+        ),
     ) -> None:
-        super().include_router(router, *args, **kwargs)
+        """
+        if 'version' provided - include all the unversioned routes with this version. May be used to wrap existing
+        routers with desired version.
+        """
+        self._context_version = version
+        self.registered_versions.add(version)
+        super().include_router(
+            router=router,
+            prefix=prefix,
+            tags=tags,
+            dependencies=dependencies,
+            default_response_class=default_response_class,
+            responses=responses,
+            callbacks=callbacks,
+            deprecated=deprecated,
+            include_in_schema=include_in_schema,
+            generate_unique_id_function=generate_unique_id_function,
+        )
         if isinstance(router, HeaderVersionedAPIRouter):
             self.registered_versions.update(router.registered_versions)
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        self._context_version = None
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:  # noqa: C901
         """
         Mostly a duplicate of FastAPI implementation, but with ability to handle partially matched versions.
         """
@@ -121,8 +201,11 @@ class HeaderVersionedAPIRouter(APIRouter):
             # release cycles. Thus, one service may release 100 different API versions and another - just 2. Clients
             # will be able to use same header for requests to both services, not caring a lot about which versions are
             # supported in each service.
+            suitable_versions = []
+            for version in self.registered_versions:
+                if version is not None and version < requested_version:
+                    suitable_versions.append(version)
 
-            suitable_versions = [version for version in self.registered_versions if version < requested_version]
             if not suitable_versions:
                 await handle_non_existing_version(scope, receive, send)
                 return
