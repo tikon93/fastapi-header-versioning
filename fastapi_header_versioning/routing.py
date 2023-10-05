@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import cache
 from typing import Any, TypeVar
 
 from fastapi import APIRouter
@@ -21,19 +22,11 @@ def same_definition_as_in(t: _T) -> Callable[[Callable], _T]:
 
 
 class HeaderVersionedAPIRoute(APIRoute):
-    __api_version__ = None
-
-    @property
-    def endpoint_version(self) -> str | None:
-        # get version declared by decorator or fallback to None in case if decorator was not used
-        if self.__api_version__ is None:
-            return None
-
-        return str(self.__api_version__)
+    api_version = None
 
     def is_version_matching(self, scope: Scope) -> bool:
         requested_version = scope["requested_version"]
-        return self.endpoint_version == requested_version
+        return self.api_version == requested_version
 
     def matches(self, scope: Scope) -> tuple[Match, Scope]:
         match, child_scope = super().matches(scope)
@@ -53,13 +46,13 @@ class HeaderVersionedAPIRoute(APIRoute):
         await super().handle(scope, receive, send)
 
 
+@cache
 def specific_version_api_route(
     version: str,
     route_class: type[APIRoute] = APIRoute,
 ) -> type[APIRoute]:
-    # todo: return same classes for same versions
     class SpecificVersionAPIRoute(HeaderVersionedAPIRoute, route_class):
-        __api_version__ = version
+        api_version = version
 
     return SpecificVersionAPIRoute
 
@@ -122,7 +115,7 @@ class HeaderVersionedAPIRouter(APIRouter):
                         route_class_override,
                     )
                 else:
-                    # include not versioned router to a router with default version set. Kind of duplicated interface
+                    # include unversioned router to a router with default version set. Kind of duplicated interface
                     # for the same operation as in `include_unversioned_router_with_version`
                     route_class_override = specific_version_api_route(self.default_version, route_class_override)
         else:

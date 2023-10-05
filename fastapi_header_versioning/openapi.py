@@ -10,7 +10,7 @@ from .routing import HeaderVersionedAPIRoute
 
 def get_version_from_route(route: BaseRoute) -> str | None:
     if isinstance(route, HeaderVersionedAPIRoute):
-        return route.endpoint_version or None
+        return route.api_version or None
 
     return None
 
