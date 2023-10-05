@@ -1,12 +1,7 @@
 from collections.abc import Callable, Sequence
 from enum import Enum
 from functools import cache
-from typing import (
-    Any,
-    Optional,
-    TypeVar,
-    Union,
-)
+from typing import Any, Optional, TypeVar, Union
 
 from fastapi import APIRouter, params
 from fastapi.datastructures import Default
