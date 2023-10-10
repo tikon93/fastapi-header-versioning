@@ -83,6 +83,7 @@ omit = [
     "tests/_data/latest/*",
     "tests/_temp/*",
     "tests/test_tutorial/*/schemas/*",
+    "examples/*"
 ]
 
 [tool.black]

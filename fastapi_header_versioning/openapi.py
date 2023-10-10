@@ -44,7 +44,7 @@ def doc_generation(
 
         prefix = f"/version_{version}"
         if version is None:
-            prefix = "/"
+            prefix = "/no_version"
         parent_app.mount(prefix, versioned_app)
 
     return parent_app

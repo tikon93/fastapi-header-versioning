@@ -14,6 +14,12 @@ async def get_parameters(offset: int = 0, limit: int = 100):
     return {"offset": offset, "limit": limit}
 
 
+@router.get("/items")
+@router.version("2")
+async def get_items():
+    return {"items": "items"}
+
+
 @router.get("/item/{item_id}", response_model=GetResponse)
 @router.version("2")
 async def get_item(
