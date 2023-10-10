@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from typing import Callable, Sequence
 from enum import Enum
 from functools import cache
 from typing import (

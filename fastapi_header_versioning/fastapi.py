@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from typing import Callable, Sequence
 from typing import Any, Optional, Union
 
 from fastapi import Depends, FastAPI
