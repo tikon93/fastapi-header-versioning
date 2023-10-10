@@ -50,13 +50,7 @@ class HeaderVersionedAPIRoute(APIRoute):
         if self.is_version_matching(scope):
             return Match.FULL, child_scope
 
-        return Match.PARTIAL, child_scope
-
-    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if not self.is_version_matching(scope):
-            await handle_non_existing_version(scope, receive, send)
-            return
-        await super().handle(scope, receive, send)
+        return Match.NONE, child_scope
 
 
 @cache
@@ -77,8 +71,8 @@ async def handle_non_existing_version(scope: Scope, receive: Receive, send: Send
             f"Requested version {scope['requested_version']} does not exist. ",
         )
 
-    response = PlainTextResponse("Not Acceptable", status_code=406)
-    await response(scope, receive, send)
+    response = PlainTextResponse("Not Acceptable", status_code=406)  # pragma: no cover
+    await response(scope, receive, send)  # pragma: no cover
 
 
 class HeaderVersionedAPIRouter(APIRouter):
@@ -180,13 +174,14 @@ class HeaderVersionedAPIRouter(APIRouter):
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:  # noqa: C901
         """
         Mostly a duplicate of FastAPI implementation, but with ability to handle partially matched versions.
+        A lot of no-covers as there are a lot of edge cases handled exactly as fastapi does
         """
         assert scope["type"] in ("http", "websocket", "lifespan")  # noqa: S101
 
-        if "router" not in scope:
+        if "router" not in scope:  # pragma: no cover
             scope["router"] = self
 
-        if scope["type"] == "lifespan":
+        if scope["type"] == "lifespan":  # pragma: no cover
             await self.lifespan(scope, receive, send)
             return
 
@@ -207,8 +202,14 @@ class HeaderVersionedAPIRouter(APIRouter):
                     suitable_versions.append(version)
 
             if not suitable_versions:
+                # this implementation will trigger 406 even on not versioned route if provided version is not registered
+                # however, it covers more real-world scenarios. proper distinguishing between 404 in case of not
+                # versioned route and 406 with not found version requires deep dive into starlette's Mount (used for
+                # doc generation) implementation which seems to be weird in case of further match processing
                 await handle_non_existing_version(scope, receive, send)
-                return
+                # it's not really executed as we'll return from function above, but for code readability it's better
+                # to have it
+                return  # pragma: no cover
             version_to_use = max(suitable_versions)
             scope["requested_version"] = version_to_use
             # maybe we can generate more narrow set of routes at this point, but it's possible to optimize it later
@@ -220,7 +221,7 @@ class HeaderVersionedAPIRouter(APIRouter):
             if match == Match.FULL:
                 scope.update(child_scope)
                 await route.handle(scope, receive, send)
-                return
+                return  # pragma: no cover
 
             if match == Match.PARTIAL and partial is None:
                 partial = route
@@ -232,7 +233,7 @@ class HeaderVersionedAPIRouter(APIRouter):
             # We use this in particular to deal with "405 Method Not Allowed".
             scope.update(partial_scope)  # pyright: ignore[reportGeneralTypeIssues]
             await partial.handle(scope, receive, send)
-            return
+            return  # pragma: no cover
 
         if scope["type"] == "http" and self.redirect_slashes and scope["path"] != "/":
             redirect_scope = dict(scope)

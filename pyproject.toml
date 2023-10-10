@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fastapi-header-versioning"
-version = "1.1.0"
+version = "1.2.0"
 description = "API versioning based on header-provided data for FastAPI."
 authors = ["Timofey Petrenko <timofey.petrenko93@gmail.com>"]
 license = "MIT"
@@ -55,6 +55,7 @@ pyright = "^1.1.327"
 asyncio_mode = "auto"
 
 [tool.coverage.report]
+fail_under = 99
 skip_covered = true
 skip_empty = true
 # Taken from https://coverage.readthedocs.io/en/7.1.0/excluding.html#advanced-exclusion
@@ -79,10 +80,7 @@ exclude_lines = [
     "__repr__",
 ]
 omit = [
-    "tests/test_tutorial/test_users_example003/*",
-    "tests/_data/latest/*",
-    "tests/_temp/*",
-    "tests/test_tutorial/*/schemas/*",
+    "examples/*"
 ]
 
 [tool.black]
